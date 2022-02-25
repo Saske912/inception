@@ -1,0 +1,9 @@
+[containers]
+influxdb
+nginx
+wordpress
+redis
+ftp
+mariadb
+[containers:vars]
+ansible_connection=docker

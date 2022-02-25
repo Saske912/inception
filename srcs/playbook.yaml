@@ -1,0 +1,96 @@
+---
+- name: configure vagrant machine
+  become: true
+  become_user: root
+  hosts: inception
+  vars:
+#    ansible_python_interpreter: /usr/bin/python3.7
+    entity:
+      - { name: 'pfile', uid: 154, group: 'pfile', home: yes, gid: 1154, dir: "/home/pfile/data/site", mode: '0775' }
+      - { name: 'mysql', uid: 155, group: 'mysql', home: no, gid: 1155, dir: "/home/pfile/data/database", mode: '0775' }
+      - { name: 'redis', uid: 156, group: 'redis', home: no, gid: 1156, dir: "/home/pfile/data/redis", mode: '0770' }
+  tasks:
+    - name: export ENV
+      shell:
+        cmd:  export $(cat /vagrant/.env | xargs)
+        chdir: /
+
+    - name: install packages
+      apt:
+        update_cache: yes
+        name:
+          - docker
+#          - python-docker
+          - docker-compose
+          - python3-pip
+        state: latest
+
+    - name: intall ansible
+      pip:
+        executable: pip3
+        name:
+          - ansible==2.9.6
+#          - influxdb
+#          - requests
+#          - docker-py>=1.7.0
+#          - docker-compose>=1.7.0
+    - name: add groups
+      group:
+        name: "{{ item.group }}"
+        gid: "{{ item.gid }}"
+        state: present
+      loop: "{{ entity }}"
+
+    - name: add users
+      user:
+        name: "{{ item.name }}"
+        uid: "{{ item.uid }}"
+        group: "{{ item.group }}"
+        state: present
+        createhome: "{{ item.home }}"
+      loop: "{{ entity }}"
+
+    - name: create directories
+      file:
+        path: "{{ item.dir }}"
+        state: directory
+        owner: "{{ item.name }}"
+        group: "{{ item.group }}"
+        mode: "{{ item.mode }}"
+        recurse: yes
+      loop: "{{ entity }}"
+
+    - name: run docker-compose up
+      docker_compose:
+        build: yes
+        project_src: /vagrant
+
+    - name: Copy adminer
+      ansible.builtin.copy:
+        remote_src: yes
+        src: /vagrant/adminer/adminer.php
+        dest: /home/pfile/data/site
+        owner: pfile
+        group: pfile
+        mode: '0775'
+
+    - name: create ansible hosts dir
+      file:
+        path: /etc/ansible/
+        state: directory
+        owner: root
+        group: root
+
+    - name: Copy ansible hosts
+      copy:
+        remote_src: yes
+        src: /vagrant/hosts
+        dest: /etc/ansible/
+        owner: root
+        group: root
+        mode: '0775'
+
+#    - name: configure mysql
+
+#- name: Include mariadb playbook
+#  import_playbook: mariadb/conf/mariadb_playbook.yaml

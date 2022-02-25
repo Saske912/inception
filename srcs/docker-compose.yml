@@ -1,0 +1,128 @@
+version: "3.3"
+services:
+  mariadb:
+    container_name: "mariadb"
+    build: mariadb
+    image: "mariadb"
+    networks:
+    - ${NETWORK}
+    volumes:
+      - database:/var/lib/mysql
+    command: /bin/sh -c "/start.sh"
+    restart: always
+    env_file:
+      - .env
+    ports:
+      - "3306:3306"
+  wordpress:
+    depends_on:
+      - mariadb
+    container_name: "wordpress"
+    image: "wordpress"
+    build:
+      context: wordpress
+      args:
+        USER: ${NEW_USER}
+        ROOT_PASSWORD: ${ROOT_PASSWORD}
+        USER_GROUP: ${USER_GROUP}
+    volumes:
+      - site:/usr/share/website
+    networks:
+      - ${NETWORK}
+    env_file:
+      - .env
+    command: /bin/sh -c "/start.sh"
+    restart: always
+  nginx:
+    container_name: "nginx"
+    image: "nginx"
+    build: nginx
+    depends_on:
+      - wordpress
+    volumes:
+      - site:/usr/share/website
+      - static_site:/var/www/html/site
+    networks:
+      - ${NETWORK}
+    env_file:
+      - .env
+    command: /bin/sh -c "/start.sh"
+    restart: always
+    ports:
+      - "443:443"
+  influxdb:
+    container_name: "influxdb"
+    image: "influxdb"
+    build: influxdb
+    networks:
+      - ${NETWORK}
+    env_file:
+      - .env
+    command: /bin/sh -c "/start.sh"
+    restart: always
+    ports:
+      - "8086:8086"
+  redis:
+    container_name: "redis"
+    build: redis
+    image: "redis"
+    networks:
+      - ${NETWORK}
+    volumes:
+      - redis:/var/lib/redis
+    command: "redis-server /etc/redis/redis.conf"
+    restart: always
+    env_file:
+      - .env
+  ftp:
+    container_name: "ftp"
+    build:
+      context: ftp
+      args:
+        USER: ${NEW_USER}
+        ROOT_PASSWORD: ${ROOT_PASSWORD}
+        USER_GROUP: ${USER_GROUP}
+        IP: ${DOMAIN_NAME}
+    image: "ftp"
+    networks:
+      - ${NETWORK}
+    volumes:
+      - site:/home/pfile
+    command: "vsftpd /etc/vsftpd.conf"
+    restart: always
+    ports:
+      - "20:20"
+      - "21:21"
+      - "30020:30020"
+      - "30021:30021"
+    env_file:
+      - .env
+networks:
+  inception_network:
+    driver: bridge
+
+volumes:
+  site:
+    driver: local
+    driver_opts:
+      o: bind
+      type: none
+      device: ${WEBSITE_FOLDER}
+  database:
+    driver: local
+    driver_opts:
+      o: bind
+      type: none
+      device: ${DATABASE_FOLDER}
+  redis:
+    driver: local
+    driver_opts:
+      o: bind
+      type: none
+      device: ${REDIS_FOLDER}
+  static_site:
+    driver: local
+    driver_opts:
+      o: bind
+      type: none
+      device: ${STATIC_SITE_FOLDER}

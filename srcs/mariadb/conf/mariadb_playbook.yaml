@@ -1,0 +1,73 @@
+---
+- name: configure maraidb
+  hosts: mariadb
+  vars:
+    ansible_python_interpreter: /usr/bin/python3.7
+    user: "{{ lookup('env','NEW_USER') }}"
+    network: "{{ lookup('env','NETWORK') }}"
+    password: "{{ lookup('env','ROOT_PASSWORD') }}"
+    root_password: "{{ lookup('env','MYSQL_ROOT_PASSWORD') }}"
+
+#  collections:
+#    - community_mysql
+#  - influxdb_database
+#  - influxdb_user
+  tasks:
+    - name: test
+      command: touch "file {{ password }}"
+
+    - name: install dependencies
+      apt:
+        update_cache: yes
+        name:
+          - python3-apt
+          - python3-pip
+        state: present
+
+    - name: install python dependencies
+      pip:
+        executable: pip3
+        name:
+        - PyMySQL
+        state: present
+
+    - name: create wordpress database
+      mysql_db:
+        login_unix_socket: /run/mysqld/mysqld.sock
+        login_user: root
+        name: "wordpress"
+        state: present
+
+    - name: create wordpress user
+      mysql_user:
+        login_unix_socket: /run/mysqld/mysqld.sock
+        login_user: root
+        name: "{{ user }}"
+        host: "wordpress.vagrant_{{ network }}"
+        password: "{{ password }}"
+        priv: 'wordpress.*:ALL'
+        state: present
+
+    - name: create adminer user
+      mysql_user:
+        login_unix_socket: /run/mysqld/mysqld.sock
+        login_user: root
+        name: "adminer"
+        host: "%"
+        password: "{{ password }}"
+        priv: '*.*:ALL'
+        state: present
+
+    - name: remove anonumous user
+      mysql_user:
+        login_unix_socket: /run/mysqld/mysqld.sock
+        login_user: root
+        name: ""
+        state: absent
+
+    - name: update mysql root password
+      mysql_user:
+        login_unix_socket: /run/mysqld/mysqld.sock
+        login_user: root
+        name: root
+        pasword: "{{ root_password }}"
